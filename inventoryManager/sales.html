@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Management</title>
+    <link rel="stylesheet" href="css/styles.css"> <!-- Link to the external CSS file -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Additional styles for the localStorage implementation */
+        .alert {
+            padding: 12px 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .alert-success { 
+            background-color: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb;
+        }
+        .alert-error { 
+            background-color: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb;
+        }
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .loading-spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-text {
+            font-size: 18px;
+            color: #333;
+        }
+        .search-container {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        #searchInput {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .date-filter {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .date-filter input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body class="light">
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading...</div>
+    </div>
+
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- Profile Picture -->
+            <div class="profile-picture-container">
+                
+                <h2>Inventory Manager</h2>
+            </div>
+            <ul>
+                <li><a href="index.html"><i class="fas fa-home"></i> Dashboard</a></li>
+                <li><a href="inventory.html"><i class="fas fa-box"></i> Inventory</a></li>
+                <li><a href="sales.html" class="active"><i class="fas fa-chart-line"></i> Sales</a></li>
+                <li><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Header -->
+            <div class="header">
+                <h1>Sales Management</h1>
+                <a href="index.html" class="logout-btn">Back to Dashboard</a>
+            </div>
+
+            <!-- Display success/error messages -->
+            <div id="successAlert" class="alert alert-success" style="display: none;"></div>
+            <div id="errorAlert" class="alert alert-error" style="display: none;"></div>
+
+            <!-- Sales Stats -->
+            <div class="cards">
+                <div class="card">
+                    <h3>Total Sales Value</h3>
+                    <p id="totalSalesValue">₱0.00</p>
+                </div>
+                <div class="card">
+                    <h3>Total Transactions</h3>
+                    <p id="totalTransactions">0</p>
+                </div>
+            </div>
+
+            <!-- Search and Date Filter -->
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="Search by item name...">
+                <button onclick="clearSearch()" class="btn-warning">Clear</button>
+            </div>
+
+            <div class="date-filter">
+                <label for="startDate">From:</label>
+                <input type="date" id="startDate">
+                <label for="endDate">To:</label>
+                <input type="date" id="endDate">
+                <button onclick="applyDateFilter()" class="btn-primary">Apply Filter</button>
+                <button onclick="clearDateFilter()" class="btn-warning">Clear Filter</button>
+            </div>
+
+            <!-- Add Sale Form -->
+            <div class="inventory-section">
+                <h2>Record New Sale</h2>
+                <form id="addSaleForm" class="add-item-form horizontal-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <select id="itemSelect" required>
+                                <option value="">Select Item</option>
+                                <!-- Items will be populated by JavaScript -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <input type="number" id="quantity" name="quantity" placeholder="Quantity" min="1" required>
+                        </div>
+                        <div class="form-group">
+                            <input type="text" id="totalPrice" name="total_price" placeholder="Total Price" readonly>
+                        </div>
+                        <div class="form-group">
+                            <button type="submit" class="add-item-btn">Record Sale</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Sales Table -->
+            <div class="inventory-section">
+                <h2>Sales History</h2>
+                <div id="salesTableContainer">
+                    <table class="inventory-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Quantity</th>
+                                <th>Price Each</th>
+                                <th>Total Price</th>
+                                <th>Sold At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salesTableBody">
+                            <!-- Sales will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                    <div id="noSalesMessage" style="text-align: center; padding: 20px; display: none;">
+                        No sales records found.
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <div id="pagination" class="pagination" style="display: none;">
+                    <!-- Pagination will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Add to your existing script
+document.addEventListener('DOMContentLoaded', function() {
+  // ... your existing code
+  
+  // Add sidebar toggle functionality
+  const sidebar = document.querySelector('.sidebar');
+  const sidebarToggle = document.createElement('button');
+  sidebarToggle.classList.add('sidebar-toggle');
+  sidebarToggle.innerHTML = '<i class="fas fa-bars"></i>';
+  document.body.appendChild(sidebarToggle);
+  
+  sidebarToggle.addEventListener('click', function() {
+    sidebar.classList.toggle('active');
+  });
+  
+  // Close sidebar when clicking outside on mobile
+  document.addEventListener('click', function(event) {
+    if (window.innerWidth < 992 && 
+        !sidebar.contains(event.target) && 
+        !sidebarToggle.contains(event.target) &&
+        sidebar.classList.contains('active')) {
+      sidebar.classList.remove('active');
+    }
+  });
+});
+        // Constants
+        const STORAGE_KEYS = {
+            INVENTORY: 'inventoryAppItems',
+            SALES: 'inventoryAppSales',
+            SETTINGS: 'inventoryAppSettings'
+        };
+
+        // DOM Elements
+        const loadingScreen = document.getElementById('loading-screen');
+        const successAlert = document.getElementById('successAlert');
+        const errorAlert = document.getElementById('errorAlert');
+        const totalSalesValueEl = document.getElementById('totalSalesValue');
+        const totalTransactionsEl = document.getElementById('totalTransactions');
+        const addSaleForm = document.getElementById('addSaleForm');
+        const itemSelect = document.getElementById('itemSelect');
+        const quantityInput = document.getElementById('quantity');
+        const totalPriceInput = document.getElementById('totalPrice');
+        const salesTableBody = document.getElementById('salesTableBody');
+        const noSalesMessage = document.getElementById('noSalesMessage');
+        const paginationEl = document.getElementById('pagination');
+        const searchInput = document.getElementById('searchInput');
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+
+        // State variables
+        let currentPage = 1;
+        let currentSearch = '';
+        let currentStartDate = '';
+        let currentEndDate = '';
+
+        // Load theme on page load
+document.addEventListener('DOMContentLoaded', function() {
+  loadTheme();
+});
+
+// Get settings from localStorage
+function getSettings() {
+  const settingsJSON = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+  return settingsJSON ? JSON.parse(settingsJSON) : {};
+}
+
+// Load current theme from localStorage
+function loadTheme() {
+  const settings = getSettings();
+  const currentTheme = settings.theme || 'light';
+  
+  // Update body class
+  document.body.className = currentTheme;
+}
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Hide loading screen after a short delay
+            setTimeout(function() {
+                loadingScreen.style.display = 'none';
+            }, 500);
+            
+            // Load and display sales data
+            loadSalesData();
+            
+            // Set up event listeners
+            addSaleForm.addEventListener('submit', handleAddSale);
+            searchInput.addEventListener('input', handleSearch);
+            itemSelect.addEventListener('change', updateTotalPrice);
+            quantityInput.addEventListener('input', updateTotalPrice);
+            quantityInput.addEventListener('change', validateQuantity);
+            
+            // Set today's date as default end date
+            const today = new Date().toISOString().split('T')[0];
+            endDateInput.value = today;
+            
+            // Set start date to 30 days ago
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            startDateInput.value = thirtyDaysAgo.toISOString().split('T')[0];
+            
+            // Apply initial date filter
+            applyDateFilter();
+            
+            // Check for URL parameters to show success messages
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('success')) {
+                showAlert(successAlert, urlParams.get('success'));
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        });
+
+        // Load sales data
+        function loadSalesData() {
+            const sales = getSales();
+            const inventory = getInventory();
+            
+            // Update stats cards
+            updateStatsCards(sales);
+            
+            // Populate item dropdown
+            populateItemDropdown(inventory);
+            
+            // Display sales table
+            renderSalesTable(sales);
+        }
+
+        // Get sales from localStorage
+        function getSales() {
+            const salesJSON = localStorage.getItem(STORAGE_KEYS.SALES);
+            return salesJSON ? JSON.parse(salesJSON) : [];
+        }
+
+        // Get inventory from localStorage
+        function getInventory() {
+            const inventoryJSON = localStorage.getItem(STORAGE_KEYS.INVENTORY);
+            return inventoryJSON ? JSON.parse(inventoryJSON) : [];
+        }
+
+        // Save sales to localStorage
+        function saveSales(sales) {
+            localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
+        }
+
+        // Save inventory to localStorage
+        function saveInventory(inventory) {
+            localStorage.setItem(STORAGE_KEYS.INVENTORY, JSON.stringify(inventory));
+        }
+
+        // Update stats cards
+        function updateStatsCards(sales) {
+            // Calculate total sales value
+            const totalSalesValue = sales.reduce((total, sale) => total + parseFloat(sale.total_price), 0);
+            const totalTransactions = sales.length;
+
+            totalSalesValueEl.textContent = `₱${totalSalesValue.toFixed(2)}`;
+            totalTransactionsEl.textContent = totalTransactions;
+        }
+
+        // Populate item dropdown with available inventory
+        function populateItemDropdown(inventory) {
+            // Clear existing options except the first one
+            while (itemSelect.options.length > 1) {
+                itemSelect.remove(1);
+            }
+            
+            // Add available items (quantity > 0)
+            const availableItems = inventory.filter(item => item.quantity > 0);
+            
+            availableItems.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = `${item.item_name} (₱${parseFloat(item.price).toFixed(2)} - Stock: ${item.quantity})`;
+                option.setAttribute('data-price', item.price);
+                option.setAttribute('data-stock', item.quantity);
+                itemSelect.appendChild(option);
+            });
+        }
+
+        // Update total price based on selected item and quantity
+        function updateTotalPrice() {
+            if (itemSelect.value && quantityInput.value) {
+                const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+                const price = parseFloat(selectedOption.getAttribute('data-price'));
+                const quantity = parseInt(quantityInput.value);
+                const totalPrice = price * quantity;
+
+                totalPriceInput.value = totalPrice.toFixed(2);
+            } else {
+                totalPriceInput.value = '';
+            }
+        }
+
+        // Validate quantity against available stock
+        function validateQuantity() {
+            if (itemSelect.value && quantityInput.value) {
+                const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+                const availableStock = parseInt(selectedOption.getAttribute('data-stock'));
+                const quantity = parseInt(quantityInput.value);
+
+                if (quantity > availableStock) {
+                    alert(`Cannot exceed available stock of ${availableStock} units.`);
+                    quantityInput.value = availableStock;
+                    updateTotalPrice();
+                }
+
+                if (quantity <= 0) {
+                    quantityInput.value = 1;
+                    updateTotalPrice();
+                }
+            }
+        }
+
+        // Render sales table
+        function renderSalesTable(sales, page = 1, itemsPerPage = 20) {
+            // Apply filters and search
+            let filteredSales = filterSales(sales);
+            
+            if (filteredSales.length === 0) {
+                noSalesMessage.style.display = 'block';
+                paginationEl.style.display = 'none';
+                salesTableBody.innerHTML = '';
+                return;
+            }
+            
+            noSalesMessage.style.display = 'none';
+            
+            // Calculate pagination
+            const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
+            const startIndex = (page - 1) * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, filteredSales.length);
+            const paginatedSales = filteredSales.slice(startIndex, endIndex);
+            
+            // Clear table body
+            salesTableBody.innerHTML = '';
+            
+            // Add rows for each sale
+            paginatedSales.forEach(sale => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${escapeHtml(sale.item_name)}</td>
+                    <td>${sale.quantity}</td>
+                    <td>₱${parseFloat(sale.price_each).toFixed(2)}</td>
+                    <td>₱${parseFloat(sale.total_price).toFixed(2)}</td>
+                    <td>${formatDateTime(sale.sold_at)}</td>
+                    <td>
+                        <div class="actions-buttons">
+                            <a href="#" class="delete-btn" data-id="${sale.id}">Delete</a>
+                        </div>
+                    </td>
+                `;
+                salesTableBody.appendChild(tr);
+            });
+            
+            // Add event listeners to delete buttons
+            const deleteButtons = document.querySelectorAll('.delete-btn');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const id = this.getAttribute('data-id');
+                    deleteSale(id);
+                });
+            });
+            
+            // Render pagination if needed
+            if (totalPages > 1) {
+                renderPagination(page, totalPages);
+                paginationEl.style.display = 'block';
+            } else {
+                paginationEl.style.display = 'none';
+            }
+        }
+
+        // Filter sales based on current filter and search
+        function filterSales(sales) {
+            let filtered = [...sales];
+            
+            // Apply search filter
+            if (currentSearch) {
+                const searchTerm = currentSearch.toLowerCase();
+                filtered = filtered.filter(sale => 
+                    sale.item_name.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            // Apply date filter
+            if (currentStartDate && currentEndDate) {
+                const startDate = new Date(currentStartDate);
+                const endDate = new Date(currentEndDate);
+                endDate.setHours(23, 59, 59, 999); // Include the entire end date
+                
+                filtered = filtered.filter(sale => {
+                    const saleDate = new Date(sale.sold_at);
+                    return saleDate >= startDate && saleDate <= endDate;
+                });
+            }
+            
+            // Sort by date (newest first)
+            filtered.sort((a, b) => new Date(b.sold_at) - new Date(a.sold_at));
+            
+            return filtered;
+        }
+
+        // Handle search
+        function handleSearch() {
+            currentSearch = searchInput.value;
+            currentPage = 1;
+            
+            const sales = getSales();
+            renderSalesTable(sales);
+        }
+
+        // Clear search
+        function clearSearch() {
+            searchInput.value = '';
+            currentSearch = '';
+            currentPage = 1;
+            
+            const sales = getSales();
+            renderSalesTable(sales);
+        }
+
+        // Apply date filter
+        function applyDateFilter() {
+            currentStartDate = startDateInput.value;
+            currentEndDate = endDateInput.value;
+            currentPage = 1;
+            
+            const sales = getSales();
+            renderSalesTable(sales);
+        }
+
+        // Clear date filter
+        function clearDateFilter() {
+            startDateInput.value = '';
+            endDateInput.value = '';
+            currentStartDate = '';
+            currentEndDate = '';
+            currentPage = 1;
+            
+            const sales = getSales();
+            renderSalesTable(sales);
+        }
+
+        // Render pagination controls
+        function renderPagination(currentPage, totalPages) {
+            let paginationHTML = '';
+            
+            if (currentPage > 1) {
+                paginationHTML += `<a href="#" data-page="${currentPage - 1}" class="pagination-link">&laquo; Previous</a>`;
+            }
+            
+            for (let i = 1; i <= totalPages; i++) {
+                paginationHTML += `<a href="#" data-page="${i}" class="pagination-link ${i === currentPage ? 'active' : ''}">${i}</a>`;
+            }
+            
+            if (currentPage < totalPages) {
+                paginationHTML += `<a href="#" data-page="${currentPage + 1}" class="pagination-link">Next &raquo;</a>`;
+            }
+            
+            paginationEl.innerHTML = paginationHTML;
+            
+            // Add event listeners to pagination links
+            const paginationLinks = document.querySelectorAll('.pagination-link');
+            paginationLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const page = parseInt(this.getAttribute('data-page'));
+                    const sales = getSales();
+                    renderSalesTable(sales, page);
+                });
+            });
+        }
+
+        // Handle add sale form submission
+        function handleAddSale(e) {
+            e.preventDefault();
+            
+            const itemId = itemSelect.value;
+            const quantity = parseInt(quantityInput.value);
+            
+            // Validate inputs
+            if (!itemId || isNaN(quantity) || quantity <= 0) {
+                showAlert(errorAlert, 'Invalid input data. Please check your values.');
+                return;
+            }
+            
+            // Get selected item details
+            const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+            const priceEach = parseFloat(selectedOption.getAttribute('data-price'));
+            const totalPrice = priceEach * quantity;
+            
+            // Get inventory to update stock
+            const inventory = getInventory();
+            const itemIndex = inventory.findIndex(item => item.id === itemId);
+            
+            if (itemIndex === -1) {
+                showAlert(errorAlert, 'Selected item not found.');
+                return;
+            }
+            
+            // Check if sufficient stock is available
+            if (inventory[itemIndex].quantity < quantity) {
+                showAlert(errorAlert, `Insufficient stock. Only ${inventory[itemIndex].quantity} units available.`);
+                return;
+            }
+            
+            // Create new sale record
+            const newSale = {
+                id: generateId(),
+                item_id: itemId,
+                item_name: inventory[itemIndex].item_name,
+                quantity: quantity,
+                price_each: priceEach,
+                total_price: totalPrice,
+                sold_at: new Date().toISOString()
+            };
+            
+            // Add to sales
+            const sales = getSales();
+            sales.unshift(newSale); // Add to beginning of array
+            saveSales(sales);
+            
+            // Update inventory quantity
+            inventory[itemIndex].quantity -= quantity;
+            saveInventory(inventory);
+            
+            // Update UI
+            updateStatsCards(sales);
+            populateItemDropdown(inventory);
+            renderSalesTable(sales);
+            
+            // Show success message and reset form
+            showAlert(successAlert, 'Sale recorded successfully!');
+            addSaleForm.reset();
+            totalPriceInput.value = '';
+        }
+
+        // Delete a sale
+        function deleteSale(id) {
+            if (!confirm('Are you sure you want to delete this sale record?')) {
+                return;
+            }
+            
+            const sales = getSales();
+            const inventory = getInventory();
+            
+            // Find sale to delete
+            const saleIndex = sales.findIndex(sale => sale.id === id);
+            
+            if (saleIndex === -1) {
+                showAlert(errorAlert, 'Sale record not found.');
+                return;
+            }
+            
+            const sale = sales[saleIndex];
+            
+            // Restore inventory quantity
+            const itemIndex = inventory.findIndex(item => item.id === sale.item_id);
+            
+            if (itemIndex !== -1) {
+                inventory[itemIndex].quantity += sale.quantity;
+                saveInventory(inventory);
+            }
+            
+            // Remove sale from sales
+            const updatedSales = sales.filter(s => s.id !== id);
+            saveSales(updatedSales);
+            
+            // Update UI
+            updateStatsCards(updatedSales);
+            populateItemDropdown(inventory);
+            renderSalesTable(updatedSales);
+            
+            showAlert(successAlert, 'Sale deleted successfully.');
+        }
+
+        // Utility functions
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        function showAlert(alertElement, message) {
+            alertElement.textContent = message;
+            alertElement.style.display = 'block';
+            setTimeout(() => {
+                alertElement.style.display = 'none';
+            }, 5000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDateTime(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric', 
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+    </script>
+</body>
+
+</html>
